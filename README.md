@@ -134,7 +134,7 @@ yarn lint
 
 ## Future Enhancements
 
-- [x] Enhanced EPG with timeline view (planby integration)
+- [x] Enhanced EPG with timeline view
 - [x] Continue watching
 - [x] Multiple profile support
 - [ ] Favorites/Watchlist
