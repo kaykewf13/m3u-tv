@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { xtreamService } from '../services/XtreamService';
 import { cacheService } from '../services/CacheService';
+import { epgService } from '../services/EpgService';
 import {
   XtreamCredentials,
   XtreamAuthResponse,
@@ -128,6 +129,9 @@ export function XtreamProvider({ children }: { children: ReactNode }) {
         // Cache categories for instant load on next app start
         cacheService.set('categories', { liveCategories, vodCategories, seriesCategories });
 
+        // Start EPG loading in background (non-blocking)
+        epgService.ensureLoaded().catch((e) => console.warn('[XtreamContext] Background EPG load failed:', e));
+
         setState((prev) => ({
           ...prev,
           isConfigured: true,
@@ -188,6 +192,10 @@ export function XtreamProvider({ children }: { children: ReactNode }) {
       if (cached) {
         xtreamService.setCredentials(credentials);
         xtreamService.setM3UEditor(true);
+
+        // Start EPG loading in background immediately (non-blocking)
+        epgService.ensureLoaded().catch((e) => console.warn('[XtreamContext] Background EPG load failed:', e));
+
         setState((prev) => ({
           ...prev,
           isConfigured: true,

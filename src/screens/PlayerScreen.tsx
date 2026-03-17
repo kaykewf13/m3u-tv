@@ -22,10 +22,12 @@ import { colors } from '../theme';
 import { Icon } from '../components/Icon';
 import { scaledPixels } from '../hooks/useScale';
 import { FocusablePressable, FocusablePressableRef } from '../components/FocusablePressable';
+import { epgService } from '../services/EpgService';
 
 const OVERLAY_TIMEOUT = 8000;
 const SEEK_STEP = 10;
 const TIMELINE_SEEK_STEP = 30;
+const LOADING_TIMEOUT_MS = 20_000;
 const USER_AGENT =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
 const VLC_ONLY_EXTENSIONS = ['.avi', '.mkv', '.wmv', '.flv', '.rmvb', '.rm', '.asf', '.divx', '.ogm'];
@@ -141,6 +143,12 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
     const timelineFocusedRef = useRef(false);
     const audioButtonRef = useRef<FocusablePressableRef>(null);
     const subtitleButtonRef = useRef<FocusablePressableRef>(null);
+    const backButtonRef = useRef<FocusablePressableRef>(null);
+    const selectGuardRef = useRef(false);
+
+    // EPG info for live channels
+    const [epgCurrent, setEpgCurrent] = useState<{ title: string; progress: number } | null>(null);
+    const [epgNext, setEpgNext] = useState<string | null>(null);
 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -165,6 +173,22 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
     const exitGuardRef = useRef(false);
     const startPositionRef = useRef(startPosition ?? 0);
     const hasSeekedToStartRef = useRef(false);
+    const loadingTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+    // Loading timeout: if stream never loads or errors, show a timeout message
+    useEffect(() => {
+        if (isLoading && !error) {
+            loadingTimerRef.current = setTimeout(() => {
+                if (isLoading) {
+                    setIsLoading(false);
+                    setError('Stream loading timed out. The server may be unreachable or the stream URL is invalid.');
+                }
+            }, LOADING_TIMEOUT_MS);
+        } else {
+            clearTimeout(loadingTimerRef.current);
+        }
+        return () => clearTimeout(loadingTimerRef.current);
+    }, [isLoading, error]);
 
     const currentTimeRef = useRef(currentTime);
     const durationRef = useRef(duration);
@@ -221,6 +245,41 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isM3UEditor, activeViewer, streamId, isLive, type, seriesId, seasonNumber]);
 
+    // Fetch EPG data for live channel
+    useEffect(() => {
+        if (!isLive || !streamId) return;
+
+        let interval: ReturnType<typeof setInterval>;
+        let cancelled = false;
+
+        const epgChannelId = route.params.epgChannelId;
+
+        const updateEpg = async () => {
+            const data = await epgService.getCurrentAndNextAsync(
+                epgChannelId || '',
+                streamId,
+            );
+            if (cancelled) return;
+
+            if (!data) {
+                setEpgCurrent(null);
+                setEpgNext(null);
+                return;
+            }
+
+            setEpgCurrent({ title: data.currentTitle, progress: data.currentProgress });
+            setEpgNext(data.nextTitle);
+        };
+
+        updateEpg();
+        interval = setInterval(updateEpg, 30000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [isLive, streamId, route.params.epgChannelId]);
+
     const [overlayVisible, setOverlayVisible] = useState(true);
     const fadeAnim = useRef(new Animated.Value(1)).current;
     const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -266,9 +325,12 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
         fadeAnim.setValue(1);
         resetHideTimer();
 
+        // Guard: prevent the same OK press from triggering play/pause
+        selectGuardRef.current = true;
         setTimeout(() => {
+            selectGuardRef.current = false;
             playButtonRef.current?.focus();
-        }, 150);
+        }, 200);
     }, [fadeAnim, resetHideTimer]);
 
     useEffect(() => {
@@ -324,10 +386,12 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
     }, [doSeekTo]);
 
     const doTogglePlayPause = useCallback(() => {
+        if (selectGuardRef.current) return;
         setPaused((prev) => !prev);
     }, []);
 
     const openAudioSelector = useCallback(() => {
+        if (selectGuardRef.current) return;
         if (audioTracks.length === 0) {
             return;
         }
@@ -349,6 +413,7 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
     }, [audioTracks, selectedAudioTrack, resetHideTimer]);
 
     const openSubtitleSelector = useCallback(() => {
+        if (selectGuardRef.current) return;
         const options = ['Off', ...textTracks.map((track) => track.name || `Track ${track.id}`)];
         const selectedIndex = selectedTextTrack === -1
             ? 0
@@ -439,9 +504,25 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
     }, []);
 
     const handleNativeError = useCallback((nativeError: OnVideoErrorData) => {
+        const errorStr = JSON.stringify(nativeError).toLowerCase();
+
+        // Check if this is a non-recoverable HTTP error (403/404)
+        const isHttpForbidden = errorStr.includes('403') || errorStr.includes('io_bad_http_status');
+        const isHttpNotFound = errorStr.includes('404');
+
+        if (isHttpForbidden || isHttpNotFound) {
+            console.error('[PlayerScreen] HTTP error (non-recoverable)', nativeError);
+            setIsLoading(false);
+            setError(
+                isHttpForbidden
+                    ? 'Stream not available (403 Forbidden). The server rejected the connection.'
+                    : 'Stream not found (404). The channel may have been removed.',
+            );
+            return;
+        }
+
         // If HLS parse error and we haven't tried swapping format yet, try .ts ↔ .m3u8
         if (backendRef.current === 'native' && !formatRetried.current) {
-            const errorStr = JSON.stringify(nativeError).toLowerCase();
             const isFormatError = errorStr.includes('parserexception') ||
                 errorStr.includes('parsing_manifest') ||
                 errorStr.includes('contentismalformed');
@@ -767,9 +848,42 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
             >
                 <FocusContainer style={styles.overlayInner}>
                     <View style={styles.header}>
-                        <Text style={styles.title} numberOfLines={1}>
-                            {title}
-                        </Text>
+                        <FocusablePressable
+                            ref={backButtonRef}
+                            onSelect={goBackSafe}
+                            onFocus={resetHideTimer}
+                            style={({ isFocused }) => [
+                                styles.backButton,
+                                isFocused && styles.backButtonFocused,
+                            ]}
+                        >
+                            <Icon name="ArrowLeft" size={scaledPixels(24)} color={colors.text} />
+                        </FocusablePressable>
+                        <View style={styles.headerInfo}>
+                            <Text style={styles.title} numberOfLines={1}>
+                                {title}
+                            </Text>
+                            {isLive && epgCurrent && (
+                                <View style={styles.epgInfoRow}>
+                                    <View style={styles.epgCurrentRow}>
+                                        <View style={styles.epgLiveBadge}>
+                                            <Text style={styles.epgLiveBadgeText}>LIVE</Text>
+                                        </View>
+                                        <Text style={styles.epgCurrentTitle} numberOfLines={1}>
+                                            {epgCurrent.title}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.epgProgressBg}>
+                                        <View style={[styles.epgProgressFill, { width: `${Math.round(epgCurrent.progress * 100)}%` }]} />
+                                    </View>
+                                    {epgNext && (
+                                        <Text style={styles.epgNextText} numberOfLines={1}>
+                                            Next: {epgNext}
+                                        </Text>
+                                    )}
+                                </View>
+                            )}
+                        </View>
                     </View>
 
                     <FocusContainer style={styles.controlsBar}>
@@ -940,23 +1054,79 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
+        gap: scaledPixels(12),
+        marginBottom: scaledPixels(16),
     },
     backButton: {
         padding: scaledPixels(10),
         borderRadius: scaledPixels(50),
         backgroundColor: 'rgba(0,0,0,0.5)',
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    backButtonFocused: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+    },
+    headerInfo: {
+        flex: 1,
     },
     title: {
-        flex: 1,
         color: colors.text,
         fontSize: scaledPixels(32),
         fontWeight: 'bold',
-        marginLeft: scaledPixels(10),
-        marginBottom: scaledPixels(16),
         textShadowColor: 'black',
         textShadowOffset: { width: 1, height: 1 },
         textShadowRadius: 5,
+    },
+    // EPG info in player overlay
+    epgInfoRow: {
+        marginTop: scaledPixels(8),
+        gap: scaledPixels(4),
+    },
+    epgCurrentRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: scaledPixels(8),
+    },
+    epgLiveBadge: {
+        backgroundColor: colors.primary,
+        paddingHorizontal: scaledPixels(8),
+        paddingVertical: scaledPixels(2),
+        borderRadius: scaledPixels(4),
+    },
+    epgLiveBadgeText: {
+        color: '#ffffff',
+        fontSize: scaledPixels(11),
+        fontWeight: '700',
+    },
+    epgCurrentTitle: {
+        flex: 1,
+        color: 'rgba(255,255,255,0.9)',
+        fontSize: scaledPixels(18),
+        textShadowColor: 'black',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 3,
+    },
+    epgProgressBg: {
+        height: scaledPixels(3),
+        borderRadius: scaledPixels(2),
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        overflow: 'hidden',
+        maxWidth: scaledPixels(400),
+    },
+    epgProgressFill: {
+        height: '100%',
+        borderRadius: scaledPixels(2),
+        backgroundColor: colors.primary,
+    },
+    epgNextText: {
+        color: 'rgba(255,255,255,0.75)',
+        fontSize: scaledPixels(15),
+        textShadowColor: 'black',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 4,
     },
     controlsBar: {
         backgroundColor: 'rgba(0,0,0,0.7)',

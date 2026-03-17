@@ -15,7 +15,7 @@ import { colors, spacing, typography } from '../theme';
 import { DrawerScreenPropsType } from '../navigation/types';
 import { FocusablePressable } from '../components/FocusablePressable';
 import { scaledPixels } from '../hooks/useScale';
-import { cacheService, CacheSettings } from '../services/CacheService';
+import { cacheService, CacheSettings, EpgViewMode } from '../services/CacheService';
 
 const REFRESH_OPTIONS = [
   { label: '15 minutes', value: 15 },
@@ -55,16 +55,44 @@ export function SettingsScreen({ navigation }: DrawerScreenPropsType<'Settings'>
   const [server, setServer] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+
+  // Load dev defaults in development mode
+  useEffect(() => {
+    if (__DEV__) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { devDefaults } = require('../config/devDefaults');
+        if (devDefaults) {
+          setServer((s: string) => s || devDefaults.server);
+          setUsername((u: string) => u || devDefaults.username);
+          setPassword((p: string) => p || devDefaults.password);
+        }
+      } catch {
+        // devDefaults.ts not present — ignore
+      }
+    }
+  }, []);
   const [refreshInterval, setRefreshInterval] = useState(60);
+  const [epgViewMode, setEpgViewMode] = useState<EpgViewMode>('list');
   const [refreshingKey, setRefreshingKey] = useState<string | null>(null);
 
   useEffect(() => {
-    cacheService.loadSettings().then((s) => setRefreshInterval(s.refreshIntervalMinutes));
+    cacheService.loadSettings().then((s) => {
+      setRefreshInterval(s.refreshIntervalMinutes);
+      setEpgViewMode(s.epgViewMode);
+    });
   }, []);
 
   const handleRefreshChange = async (value: number) => {
     setRefreshInterval(value);
-    await cacheService.saveSettings({ refreshIntervalMinutes: value });
+    const settings = cacheService.getSettings();
+    await cacheService.saveSettings({ ...settings, refreshIntervalMinutes: value });
+  };
+
+  const handleEpgViewModeChange = async (mode: EpgViewMode) => {
+    setEpgViewMode(mode);
+    const settings = cacheService.getSettings();
+    await cacheService.saveSettings({ ...settings, epgViewMode: mode });
   };
 
   const handleClearCache = async () => {
@@ -236,6 +264,36 @@ export function SettingsScreen({ navigation }: DrawerScreenPropsType<'Settings'>
                     style={[
                       styles.refreshOptionText,
                       refreshInterval === option.value && styles.refreshOptionTextActive,
+                      isFocused && styles.buttonTextFocused,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                )}
+              </FocusablePressable>
+            ))}
+          </View>
+
+          <Text style={styles.label}>EPG View Mode</Text>
+          <Text style={styles.cacheDescription}>
+            Choose how Live TV channels are displayed.
+          </Text>
+          <View style={styles.refreshOptions}>
+            {([{ label: 'Channel List', value: 'list' as EpgViewMode }, { label: 'EPG Grid', value: 'grid' as EpgViewMode }]).map((option) => (
+              <FocusablePressable
+                key={option.value}
+                style={({ isFocused }) => [
+                  styles.refreshOption,
+                  epgViewMode === option.value && styles.refreshOptionActive,
+                  isFocused && styles.refreshOptionFocused,
+                ]}
+                onSelect={() => handleEpgViewModeChange(option.value)}
+              >
+                {({ isFocused }) => (
+                  <Text
+                    style={[
+                      styles.refreshOptionText,
+                      epgViewMode === option.value && styles.refreshOptionTextActive,
                       isFocused && styles.buttonTextFocused,
                     ]}
                   >

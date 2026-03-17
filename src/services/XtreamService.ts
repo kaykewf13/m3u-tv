@@ -200,15 +200,94 @@ class XtreamService {
     return this.fetchJson<XtreamShortEpg>(url);
   }
 
+  /**
+   * Batch EPG fetch using the server's native get_epg_batch endpoint.
+   * Accepts up to 100 stream IDs and a date string (YYYY-MM-DD).
+   * Falls back to individual get_short_epg calls if batch endpoint fails.
+   */
   async getEpgBatch(streamIds: number[], date?: string): Promise<Record<string, XtreamShortEpg>> {
-    const params: Record<string, string> = {
-      stream_ids: streamIds.join(','),
-    };
-    if (date) {
-      params.date = date;
+    if (streamIds.length === 0) return {};
+
+    // Try native batch endpoint first (m3u-editor specific)
+    console.log('[XtreamService] getEpgBatch: isM3UEditor=', this.isM3UEditor, 'ids:', streamIds.length);
+    if (this.isM3UEditor) {
+      try {
+        const params: Record<string, string> = {
+          stream_ids: streamIds.join(','),
+        };
+        if (date) params.date = date;
+        const url = this.getApiUrl('get_epg_batch', params);
+        console.log('[XtreamService] getEpgBatch URL:', url.substring(0, 150) + '...');
+        const result = await this.fetchJson<Record<string, XtreamShortEpg>>(url);
+        console.log('[XtreamService] getEpgBatch success, keys:', Object.keys(result).length);
+        return result;
+      } catch (err) {
+        console.warn('[XtreamService] getEpgBatch batch failed:', err);
+        // Fall through to individual fetches
+      }
     }
-    const url = this.getApiUrl('get_epg_batch', params);
-    return this.fetchJson<Record<string, XtreamShortEpg>>(url);
+
+    // Fallback: fetch individually in parallel chunks
+    const result: Record<string, XtreamShortEpg> = {};
+    const CHUNK_SIZE = 5;
+    for (let i = 0; i < streamIds.length; i += CHUNK_SIZE) {
+      const chunk = streamIds.slice(i, i + CHUNK_SIZE);
+      const responses = await Promise.allSettled(
+        chunk.map((id) => this.getShortEpg(id, 10)),
+      );
+      for (let j = 0; j < chunk.length; j++) {
+        const res = responses[j];
+        result[String(chunk[j])] = res.status === 'fulfilled'
+          ? res.value
+          : { epg_listings: [] };
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Batch full EPG fetch for EPG grid (uses get_simple_data_table per stream).
+   * Uses native get_epg_batch when available.
+   */
+  async getFullEpgBatch(streamIds: number[]): Promise<Record<string, XtreamShortEpg>> {
+    if (streamIds.length === 0) return {};
+
+    // Try native batch endpoint (returns same format as get_simple_data_table)
+    console.log('[XtreamService] getFullEpgBatch: isM3UEditor=', this.isM3UEditor, 'ids:', streamIds.length);
+    if (this.isM3UEditor) {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const params: Record<string, string> = {
+          stream_ids: streamIds.join(','),
+          date: today,
+        };
+        const url = this.getApiUrl('get_epg_batch', params);
+        console.log('[XtreamService] getFullEpgBatch URL:', url.substring(0, 150) + '...');
+        const result = await this.fetchJson<Record<string, XtreamShortEpg>>(url);
+        console.log('[XtreamService] getFullEpgBatch success, keys:', Object.keys(result).length);
+        return result;
+      } catch (err) {
+        console.warn('[XtreamService] getFullEpgBatch batch failed:', err);
+        // Fall through to individual fetches
+      }
+    }
+
+    // Fallback: fetch individually
+    const result: Record<string, XtreamShortEpg> = {};
+    const CHUNK_SIZE = 5;
+    for (let i = 0; i < streamIds.length; i += CHUNK_SIZE) {
+      const chunk = streamIds.slice(i, i + CHUNK_SIZE);
+      const responses = await Promise.allSettled(
+        chunk.map((id) => this.getSimpleDataTable(id)),
+      );
+      for (let j = 0; j < chunk.length; j++) {
+        const res = responses[j];
+        result[String(chunk[j])] = res.status === 'fulfilled'
+          ? res.value
+          : { epg_listings: [] };
+      }
+    }
+    return result;
   }
 
   // Viewers (m3u-editor specific)

@@ -97,7 +97,7 @@ export function VODScreen(_props: DrawerScreenPropsType<'VOD'>) {
               contentContainerStyle={styles.categoryListContent}
             >
               {[{ category_id: '', category_name: 'All Movies', parent_id: 0 }, ...vodCategories].map((item, index) => (
-                <React.Fragment key={item.category_id || 'all'}>
+                <React.Fragment key={item.category_id ? `cat-${item.category_id}` : `idx-${index}`}>
                   {renderCategoryItem({ item, index })}
                 </React.Fragment>
               ))}

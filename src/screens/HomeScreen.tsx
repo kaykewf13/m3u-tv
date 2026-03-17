@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView, FlatList, Image } from 'react-native';
 import { useXtream } from '../context/XtreamContext';
 import { useViewer } from '../context/ViewerContext';
+import { useMenu } from '../context/MenuContext';
 import { colors } from '../theme';
 import { scaledPixels } from '../hooks/useScale';
 import { FocusablePressable } from '../components/FocusablePressable';
@@ -14,6 +15,7 @@ import { XtreamLiveStream, XtreamVodStream, XtreamSeries, WatchProgress } from '
 export function HomeScreen({ navigation }: DrawerScreenPropsType<'Home'>) {
   const { isConfigured, isLoading, isM3UEditor, loadSavedCredentials, fetchLiveStreams, fetchVodStreams, fetchSeries } = useXtream();
   const { activeViewer, getRecentlyWatched } = useViewer();
+  const { isSidebarActive, setSidebarActive } = useMenu();
   const [liveStreams, setLiveStreams] = useState<XtreamLiveStream[]>([]);
   const [vodStreams, setVodStreams] = useState<XtreamVodStream[]>([]);
   const [seriesList, setSeriesList] = useState<XtreamSeries[]>([]);
@@ -104,7 +106,7 @@ export function HomeScreen({ navigation }: DrawerScreenPropsType<'Home'>) {
               style={styles.rowList}
               showsHorizontalScrollIndicator={false}
               keyExtractor={(item) => `${item.content_type}-${item.stream_id}`}
-              renderItem={({ item: prog }) => {
+              renderItem={({ item: prog, index }) => {
                 const vod = prog.content_type === 'vod'
                   ? vodStreams.find((v) => v.stream_id === prog.stream_id)
                   : undefined;
@@ -120,6 +122,7 @@ export function HomeScreen({ navigation }: DrawerScreenPropsType<'Home'>) {
                 return (
                   <FocusablePressable
                     onSelect={() => handleContinueWatching(prog)}
+                    onFocus={index === 0 ? () => isSidebarActive && setSidebarActive(false) : undefined}
                     style={({ isFocused }) => [styles.continueCard, isFocused && styles.continueCardFocused]}
                   >
                     {() => (
@@ -149,7 +152,7 @@ export function HomeScreen({ navigation }: DrawerScreenPropsType<'Home'>) {
             <FlatList
               data={liveStreams}
               renderItem={({ item, index }: { item: XtreamLiveStream; index: number }) => (
-                <LiveTVCard item={item} />
+                <LiveTVCard item={item} onFocus={index === 0 ? () => isSidebarActive && setSidebarActive(false) : undefined} />
               )}
               horizontal
               removeClippedSubviews
@@ -172,7 +175,7 @@ export function HomeScreen({ navigation }: DrawerScreenPropsType<'Home'>) {
             <FlatList
               data={vodStreams}
               renderItem={({ item, index }: { item: XtreamVodStream; index: number }) => (
-                <MovieCard item={item} />
+                <MovieCard item={item} onFocus={index === 0 ? () => isSidebarActive && setSidebarActive(false) : undefined} />
               )}
               horizontal
               removeClippedSubviews
@@ -195,7 +198,7 @@ export function HomeScreen({ navigation }: DrawerScreenPropsType<'Home'>) {
             <FlatList
               data={seriesList}
               renderItem={({ item, index }: { item: XtreamSeries; index: number }) => (
-                <SeriesCard item={item} />
+                <SeriesCard item={item} onFocus={index === 0 ? () => isSidebarActive && setSidebarActive(false) : undefined} />
               )}
               horizontal
               removeClippedSubviews

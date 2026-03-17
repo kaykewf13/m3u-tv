@@ -41,6 +41,7 @@ function MainNavigator() {
   const { isSidebarActive, setSidebarActive } = useMenu();
   const contentFocusRef = useRef<View>(null);
   const [contentFocusTag, setContentFocusTag] = useState<number>();
+  const wasFocusedRef = useRef(isFocused);
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -51,6 +52,14 @@ function MainNavigator() {
     }, 0);
     return () => clearTimeout(id);
   }, []);
+
+  // When returning from a modal (Player, Details), ensure sidebar stays collapsed
+  useEffect(() => {
+    if (isFocused && !wasFocusedRef.current) {
+      setSidebarActive(false);
+    }
+    wasFocusedRef.current = isFocused;
+  }, [isFocused, setSidebarActive]);
 
   // Back button: focus sidebar instead of exiting when on a top-level screen
   useEffect(() => {

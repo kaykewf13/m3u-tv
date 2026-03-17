@@ -7,17 +7,21 @@ import {
   FlatList,
   ScrollView,
   Image,
+  ViewToken,
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useXtream } from '../context/XtreamContext';
-import { xtreamService } from '../services/XtreamService';
+import { cacheService, EpgViewMode } from '../services/CacheService';
+import { epgService } from '../services/EpgService';
+import { EPGGrid } from '../components/EPGGrid';
+import { Icon } from '../components/Icon';
 import { useMenu } from '../context/MenuContext';
 import { colors } from '../theme';
 import { DrawerScreenPropsType } from '../navigation/types';
 import { RootStackParamList } from '../navigation/types';
-import { XtreamCategory, XtreamLiveStream, XtreamEpgListing } from '../types/xtream';
+import { XtreamCategory, XtreamLiveStream } from '../types/xtream';
 import { scaledPixels } from '../hooks/useScale';
 import { FocusablePressable } from '../components/FocusablePressable';
 
@@ -28,66 +32,6 @@ interface EpgInfo {
   currentProgress: number;
   nextTitle: string | null;
 }
-
-const decodeBase64 = (str: string): string => {
-  try {
-    const chars =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-    let output = '';
-    const s = str.replace(/[^A-Za-z0-9+/=]/g, '');
-    for (let i = 0; i < s.length; ) {
-      const e1 = chars.indexOf(s.charAt(i++));
-      const e2 = chars.indexOf(s.charAt(i++));
-      const e3 = chars.indexOf(s.charAt(i++));
-      const e4 = chars.indexOf(s.charAt(i++));
-      output += String.fromCharCode((e1 << 2) | (e2 >> 4));
-      if (e3 !== 64) output += String.fromCharCode(((e2 & 15) << 4) | (e3 >> 2));
-      if (e4 !== 64) output += String.fromCharCode(((e3 & 3) << 6) | e4);
-    }
-    return decodeURIComponent(escape(output));
-  } catch {
-    return str;
-  }
-};
-
-const findCurrentAndNext = (listings: XtreamEpgListing[]): EpgInfo | null => {
-  if (!listings?.length) return null;
-
-  const now = Date.now() / 1000;
-  const sorted = [...listings]
-    .filter((l) => l?.start_timestamp && l?.stop_timestamp)
-    .sort((a, b) => Number(a.start_timestamp) - Number(b.start_timestamp));
-
-  let currentIdx = -1;
-  for (let i = 0; i < sorted.length; i++) {
-    const start = Number(sorted[i].start_timestamp);
-    const stop = Number(sorted[i].stop_timestamp);
-    if (start <= now && stop > now) {
-      currentIdx = i;
-      break;
-    }
-  }
-
-  if (currentIdx === -1) return null;
-
-  const current = sorted[currentIdx];
-  const start = Number(current.start_timestamp);
-  const stop = Number(current.stop_timestamp);
-  const duration = stop - start;
-  const elapsed = now - start;
-  const progress = duration > 0 ? Math.min(elapsed / duration, 1) : 0;
-
-  const next = currentIdx + 1 < sorted.length ? sorted[currentIdx + 1] : null;
-
-  return {
-    currentTitle: decodeBase64(String(current.title || 'Unknown')),
-    currentProgress: progress,
-    nextTitle: next ? decodeBase64(String(next.title || '')) : null,
-  };
-};
-
-// ── EPG batch fetch size ─────────────────────────────────────────────────────
-const EPG_BATCH_SIZE = 20;
 
 // ── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -100,58 +44,165 @@ export function LiveTVScreen(_props: DrawerScreenPropsType<'LiveTV'>) {
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [epgMap, setEpgMap] = useState<Record<string, EpgInfo | null>>({});
-  const fetchedEpgIds = useRef<Set<string>>(new Set());
+  const [epgLoaded, setEpgLoaded] = useState(false);
+  const [viewMode, setViewMode] = useState<EpgViewMode>('list');
+  const loadedEpgIdsRef = useRef<Set<number>>(new Set());
+  const liveStreamsRef = useRef(liveStreams);
+  liveStreamsRef.current = liveStreams;
 
+  // Load persisted view mode
   useEffect(() => {
-    if (isConfigured) {
-      loadStreams();
-    }
-  }, [isConfigured, selectedCategory]);
-
-  const loadStreams = async () => {
-    setIsLoading(true);
-    const streams = await fetchLiveStreams(selectedCategory);
-    setLiveStreams(streams);
-    setIsLoading(false);
-  };
-
-  const fetchEpgForStreams = useCallback(async (streamIds: number[]) => {
-    const toFetch = streamIds.filter((id) => !fetchedEpgIds.current.has(String(id)));
-    if (!toFetch.length) return;
-
-    toFetch.forEach((id) => fetchedEpgIds.current.add(String(id)));
-
-    try {
-      const now = new Date();
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-      const result = await xtreamService.getEpgBatch(toFetch, dateStr);
-
-      setEpgMap((prev) => {
-        const next = { ...prev };
-        for (const sid of toFetch) {
-          const data = result[String(sid)];
-          next[String(sid)] = data?.epg_listings
-            ? findCurrentAndNext(data.epg_listings)
-            : null;
-        }
-        return next;
-      });
-    } catch (err) {
-      console.warn('[LiveTVScreen] EPG batch fetch failed:', err);
-    }
+    cacheService.loadSettings().then((s) => setViewMode(s.epgViewMode));
   }, []);
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ item: XtreamLiveStream }> }) => {
+  // Helper: load EPG for a set of stream IDs and merge into epgMap
+  const loadEpgForIds = useCallback(async (ids: number[]) => {
+    const newIds = ids.filter((id) => !loadedEpgIdsRef.current.has(id));
+    if (newIds.length === 0) return;
+
+    console.log('[LiveTV] loadEpgForIds:', newIds.length, 'new IDs, first:', newIds.slice(0, 5));
+    newIds.forEach((id) => loadedEpgIdsRef.current.add(id));
+    await epgService.loadBatch(newIds);
+
+    let withData = 0;
+    setEpgMap((prev) => {
+      const next = { ...prev };
+      for (const id of newIds) {
+        const data = epgService.getCurrentAndNext(String(id));
+        if (data) {
+          withData++;
+          next[String(id)] = {
+            currentTitle: data.currentTitle,
+            currentProgress: data.currentProgress,
+            nextTitle: data.nextTitle,
+          };
+        }
+      }
+      return next;
+    });
+    console.log('[LiveTV] loadEpgForIds done:', withData, '/', newIds.length, 'have EPG data');
+  }, []);
+
+  // Load initial batch of EPG data when streams change
+  useEffect(() => {
+    if (!liveStreams.length) return;
+    let cancelled = false;
+
+    // Populate from EpgService cache synchronously first
+    const cached: Record<string, EpgInfo | null> = {};
+    let cachedCount = 0;
+    for (const stream of liveStreams.slice(0, 20)) {
+      const data = epgService.getCurrentAndNext(String(stream.stream_id));
+      if (data) {
+        cached[String(stream.stream_id)] = {
+          currentTitle: data.currentTitle,
+          currentProgress: data.currentProgress,
+          nextTitle: data.nextTitle,
+        };
+        cachedCount++;
+        loadedEpgIdsRef.current.add(stream.stream_id);
+      }
+    }
+    if (cachedCount > 0) {
+      console.log('[LiveTV] Populated', cachedCount, 'from EpgService cache');
+      setEpgMap(cached);
+    }
+
+    const loadInitial = async () => {
+      const initialIds = liveStreams.slice(0, 20).map((s) => s.stream_id);
+      await loadEpgForIds(initialIds);
+      if (!cancelled) setEpgLoaded(true);
+    };
+
+    loadInitial();
+    return () => { cancelled = true; };
+  }, [liveStreams, loadEpgForIds]);
+
+  // Lazy-load EPG as user scrolls through the list
+  const onListViewableItemsChanged = useRef((
+    { viewableItems }: { viewableItems: ViewToken[]; changed: ViewToken[] },
+  ) => {
     const ids = viewableItems
-      .map((v) => v.item.stream_id)
-      .filter((id) => !fetchedEpgIds.current.has(String(id)));
+      .map((v) => (v.item as XtreamLiveStream)?.stream_id)
+      .filter((id): id is number => id != null && !loadedEpgIdsRef.current.has(id));
     if (ids.length > 0) {
-      fetchEpgForStreams(ids.slice(0, EPG_BATCH_SIZE));
+      const allStreams = liveStreamsRef.current;
+      const lastIdx = viewableItems.reduce((max, v) => Math.max(max, v.index ?? 0), 0);
+      const extraIds = allStreams
+        .slice(lastIdx + 1, lastIdx + 11)
+        .map((s) => s.stream_id)
+        .filter((id) => !loadedEpgIdsRef.current.has(id));
+      const allIds = [...ids, ...extraIds];
+      allIds.forEach((id) => loadedEpgIdsRef.current.add(id));
+      epgService.loadBatch(allIds).then(() => {
+        setEpgMap((prev) => {
+          const next = { ...prev };
+          for (const id of allIds) {
+            const data = epgService.getCurrentAndNext(String(id));
+            if (data) {
+              next[String(id)] = {
+                currentTitle: data.currentTitle,
+                currentProgress: data.currentProgress,
+                nextTitle: data.nextTitle,
+              };
+            }
+          }
+          return next;
+        });
+      }).catch(() => {});
     }
   }).current;
 
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 30 }).current;
+  const listViewabilityConfig = useRef({ itemVisiblePercentThreshold: 10 }).current;
+
+  // Refresh EPG progress every 30 seconds (sync lookup from cache)
+  useEffect(() => {
+    if (!epgLoaded || !liveStreams.length) return;
+    const interval = setInterval(() => {
+      setEpgMap((prev) => {
+        const next: Record<string, EpgInfo | null> = {};
+        for (const key of Object.keys(prev)) {
+          const data = epgService.getCurrentAndNext(key);
+          if (data) {
+            next[key] = {
+              currentTitle: data.currentTitle,
+              currentProgress: data.currentProgress,
+              nextTitle: data.nextTitle,
+            };
+          }
+        }
+        return next;
+      });
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [epgLoaded, liveStreams]);
+
+  // Load streams for the selected category
+  const loadStreams = useCallback(
+    async (categoryId?: string) => {
+      setIsLoading(true);
+      try {
+        const streams = await fetchLiveStreams(categoryId);
+        setLiveStreams(streams);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [fetchLiveStreams],
+  );
+
+  // Fetch live streams when screen becomes focused or category changes
+  useEffect(() => {
+    if (!isConfigured || !isFocused) return;
+    loadStreams(selectedCategory);
+  }, [isConfigured, isFocused, selectedCategory, loadStreams]);
+
+  const toggleViewMode = useCallback(async () => {
+    const next = viewMode === 'list' ? 'grid' : 'list';
+    setViewMode(next);
+    const current = cacheService.getSettings();
+    await cacheService.saveSettings({ ...current, epgViewMode: next });
+  }, [viewMode]);
 
   const handleChannelSelect = useCallback(
     (item: XtreamLiveStream) => {
@@ -160,6 +211,8 @@ export function LiveTVScreen(_props: DrawerScreenPropsType<'LiveTV'>) {
         streamUrl,
         title: item.name,
         type: 'live',
+        streamId: item.stream_id,
+        epgChannelId: item.epg_channel_id || undefined,
       });
     },
     [getLiveStreamUrl, navigation],
@@ -175,8 +228,6 @@ export function LiveTVScreen(_props: DrawerScreenPropsType<'LiveTV'>) {
       ]}
       onSelect={() => {
         setSelectedCategory(item.category_id || undefined);
-        fetchedEpgIds.current.clear();
-        setEpgMap({});
       }}
     >
       {({ isFocused }) => (
@@ -275,43 +326,71 @@ export function LiveTVScreen(_props: DrawerScreenPropsType<'LiveTV'>) {
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={liveStreams}
-        renderItem={renderStreamItem}
-        keyExtractor={(item) => String(item.stream_id)}
-        showsVerticalScrollIndicator={false}
-        removeClippedSubviews
-        initialNumToRender={12}
-        maxToRenderPerBatch={8}
-        windowSize={5}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        ListEmptyComponent={
-          isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
-          ) : null
-        }
-        ListHeaderComponent={
-          <View style={styles.categoryListContainer}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.categoryList}
-              contentContainerStyle={styles.categoryListContent}
-            >
-              {[{ category_id: '', category_name: 'All Channels', parent_id: 0 }, ...liveCategories].map(
-                (item, index) => (
-                  <React.Fragment key={item.category_id || 'all'}>
-                    {renderCategoryItem({ item, index })}
-                  </React.Fragment>
-                ),
-              )}
-            </ScrollView>
-          </View>
-        }
-      />
+      {/* Category bar + view mode toggle */}
+      <View style={styles.categoryBar}>
+        <FocusablePressable
+          style={({ isFocused }) => [
+            styles.viewModeButton,
+            isFocused && styles.viewModeButtonFocused,
+          ]}
+          onSelect={toggleViewMode}
+        >
+          {({ isFocused }) => (
+            <Icon
+              name={viewMode === 'list' ? 'LayoutGrid' : 'List'}
+              size={scaledPixels(22)}
+              color={isFocused ? '#ffffff' : colors.textSecondary}
+            />
+          )}
+        </FocusablePressable>
+        <View style={styles.categoryListContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.categoryList}
+            contentContainerStyle={styles.categoryListContent}
+          >
+            {[{ category_id: '', category_name: 'All Channels', parent_id: 0 }, ...liveCategories].map(
+              (item, index) => (
+                <React.Fragment key={item.category_id ? `cat-${item.category_id}` : `idx-${index}`}>
+                  {renderCategoryItem({ item, index })}
+                </React.Fragment>
+              ),
+            )}
+          </ScrollView>
+        </View>
+      </View>
+
+      {/* Content: list or grid */}
+      {viewMode === 'list' ? (
+        <FlatList
+          data={liveStreams}
+          extraData={epgMap}
+          renderItem={renderStreamItem}
+          keyExtractor={(item) => String(item.stream_id)}
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews
+          initialNumToRender={12}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          onViewableItemsChanged={onListViewableItemsChanged}
+          viewabilityConfig={listViewabilityConfig}
+          ListEmptyComponent={
+            isLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+              </View>
+            ) : null
+          }
+        />
+      ) : (
+        <EPGGrid
+          streams={liveStreams}
+          onChannelSelect={handleChannelSelect}
+          isSidebarActive={isSidebarActive}
+          setSidebarActive={setSidebarActive}
+        />
+      )}
     </View>
   );
 }
@@ -338,10 +417,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: scaledPixels(60),
   },
+  categoryBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: scaledPixels(20),
+    gap: scaledPixels(10),
+  },
+  viewModeButton: {
+    width: scaledPixels(52),
+    height: scaledPixels(52),
+    borderRadius: scaledPixels(26),
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  viewModeButtonFocused: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+    transform: [{ scale: 1.1 }],
+  },
   categoryListContainer: {
+    flex: 1,
     paddingVertical: scaledPixels(10),
     paddingHorizontal: scaledPixels(10),
-    marginHorizontal: scaledPixels(40),
+    marginRight: scaledPixels(40),
     marginTop: scaledPixels(25),
     marginBottom: scaledPixels(12),
     height: scaledPixels(80),

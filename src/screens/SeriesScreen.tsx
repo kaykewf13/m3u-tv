@@ -97,7 +97,7 @@ export function SeriesScreen(_props: DrawerScreenPropsType<'Series'>) {
               contentContainerStyle={styles.categoryListContent}
             >
               {[{ category_id: '', category_name: 'All Series', parent_id: 0 }, ...seriesCategories].map((item, index) => (
-                <React.Fragment key={item.category_id || 'all'}>
+                <React.Fragment key={item.category_id ? `cat-${item.category_id}` : `idx-${index}`}>
                   {renderCategoryItem({ item, index })}
                 </React.Fragment>
               ))}
