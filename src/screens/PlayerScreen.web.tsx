@@ -97,46 +97,69 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
         }
     }, []);
 
+    // Guard to prevent multiple external player launches
+    const externalPlayerLaunched = useRef(false);
+    const [externalPlaying, setExternalPlaying] = useState(false);
+
+    // Listen for external player close to navigate back
+    useEffect(() => {
+        if (!externalPlaying || !electronAPI?.onExternalPlayerClosed) return;
+        const cleanup = electronAPI.onExternalPlayerClosed(() => {
+            setExternalPlaying(false);
+            externalPlayerLaunched.current = false;
+            goBackSafe();
+        });
+        return cleanup;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [externalPlaying]);
+
     // Try to open the stream in an external player (mpv/vlc) when in Electron
     const openInExternalPlayer = useCallback(async () => {
         if (!electronAPI?.openExternal) return;
+        if (externalPlayerLaunched.current) return;
+        externalPlayerLaunched.current = true;
+
         setError(null);
-        setIsLoading(true);
+        setIsLoading(false);
+        setExternalPlaying(true);
         try {
-            const result = await electronAPI.openExternal(streamUrl);
-            if (result.success) {
-                // External player launched — go back to the previous screen
-                goBackSafe();
-            } else {
+            const result = await electronAPI.openExternal(streamUrl, startPosition || 0);
+            if (!result.success) {
                 setError(result.error || 'Failed to open external player');
-                setIsLoading(false);
+                setExternalPlaying(false);
+                externalPlayerLaunched.current = false;
             }
+            // Don't goBack — let the user close mpv and come back manually
         } catch (err: any) {
             setError(`External player error: ${err?.message || err}`);
-            setIsLoading(false);
+            setExternalPlaying(false);
+            externalPlayerLaunched.current = false;
         }
-    }, [streamUrl, goBackSafe]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [streamUrl]);
 
     // Video playback setup
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
 
-        const isHls = streamUrl.includes('.m3u8') || streamUrl.includes('/live/') || streamUrl.includes('/streaming/');
+        // In Electron: always use external player (mpv/vlc)
+        // Chromium can't play raw MPEG-TS, MKV, or most IPTV formats
+        if (isElectron) {
+            openInExternalPlayer();
+            return;
+        }
+
+        // Browser playback: try HLS.js for .m3u8, direct for MP4/WebM
+        const isHls = streamUrl.includes('.m3u8');
 
         if (isHls && !video.canPlayType('application/vnd.apple.mpegurl')) {
-            // Need HLS.js for HLS streams
             let cancelled = false;
             import('hls.js').then(({ default: Hls }) => {
                 if (cancelled) return;
                 if (!Hls.isSupported()) {
-                    // HLS not supported — try external player in Electron
-                    if (isElectron) {
-                        openInExternalPlayer();
-                    } else {
-                        setError('HLS is not supported in this browser.');
-                        setIsLoading(false);
-                    }
+                    setError('HLS is not supported in this browser.');
+                    setIsLoading(false);
                     return;
                 }
 
@@ -168,24 +191,14 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
                             mediaErrorRecoveries++;
                             hls.recoverMediaError();
                         } else {
-                            // HLS failed — try external player in Electron
-                            if (isElectron) {
-                                hls.destroy();
-                                openInExternalPlayer();
-                            } else {
-                                setError(`Playback Error: ${data.details}`);
-                                setIsLoading(false);
-                            }
+                            setError(`Playback Error: ${data.details}`);
+                            setIsLoading(false);
                         }
                     }
                 });
             }).catch((err) => {
-                if (isElectron) {
-                    openInExternalPlayer();
-                } else {
-                    setError(`Failed to load HLS player: ${err?.message || err}`);
-                    setIsLoading(false);
-                }
+                setError(`Failed to load HLS player: ${err?.message || err}`);
+                setIsLoading(false);
             });
 
             return () => {
@@ -207,35 +220,21 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
             };
 
             const onError = () => {
-                // Direct playback failed — try external player in Electron
-                if (isElectron) {
-                    video.src = '';
-                    openInExternalPlayer();
-                } else {
-                    setError('Failed to load video. The format may not be supported in the browser.');
-                    setIsLoading(false);
-                }
+                setError('Failed to load video. The format may not be supported in the browser.');
+                setIsLoading(false);
             };
-
-            // Timeout: if video doesn't start within 15s, try external player
-            const loadTimeout = setTimeout(() => {
-                if (isElectron && video.readyState < 3) {
-                    video.src = '';
-                    openInExternalPlayer();
-                }
-            }, 15000);
 
             video.addEventListener('canplay', onCanPlay);
             video.addEventListener('error', onError);
 
             return () => {
-                clearTimeout(loadTimeout);
                 video.removeEventListener('canplay', onCanPlay);
                 video.removeEventListener('error', onError);
                 video.src = '';
             };
         }
-    }, [streamUrl, isLive, startPosition, openInExternalPlayer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [streamUrl, isLive, startPosition]);
 
     // Sync video element state
     useEffect(() => {
@@ -397,10 +396,27 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
                     backgroundColor: '#000',
                     objectFit: 'contain',
                 }}
+                autoPlay
                 playsInline
             />
 
-            {isLoading && !error && (
+            {externalPlaying && (
+                <View style={styles.centerOverlay}>
+                    <Text style={styles.loadingText}>Playing in external player</Text>
+                    <FocusablePressable
+                        onSelect={goBackSafe}
+                        style={({ isFocused }) => [
+                            styles.backButton,
+                            { marginTop: scaledPixels(20) },
+                            isFocused && styles.controlButtonFocused,
+                        ]}
+                    >
+                        <Text style={{ color: colors.text, fontSize: scaledPixels(16) }}>Go Back</Text>
+                    </FocusablePressable>
+                </View>
+            )}
+
+            {isLoading && !error && !externalPlaying && (
                 <View style={styles.centerOverlay} pointerEvents="none">
                     <ActivityIndicator color="#ffffff" size="large" />
                     <Text style={styles.loadingText}>Loading stream...</Text>
