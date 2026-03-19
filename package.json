@@ -70,13 +70,11 @@
   },
   "resolutions": {
     "tar": ">=7.5.10",
-    "minimatch": ">=9.0.7",
-    "ajv": ">=8.18.0"
+    "minimatch": ">=9.0.7"
   },
   "overrides": {
     "tar": ">=7.5.10",
-    "minimatch": ">=9.0.7",
-    "ajv": ">=8.18.0"
+    "minimatch": ">=9.0.7"
   },
   "build": {
     "appId": "com.m3utv.desktop",

@@ -7,6 +7,7 @@ import { FocusGuide } from '../components/FocusGuide';
 import { useBackHandler } from '../hooks/useBackHandler';
 import {
   HomeScreen,
+  SearchScreen,
   SettingsScreen,
   LiveTVScreen,
   VODScreen,

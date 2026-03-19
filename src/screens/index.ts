@@ -8,3 +8,4 @@ export { MovieDetailsScreen } from './MovieDetailsScreen';
 export { SeriesDetailsScreen } from './SeriesDetailsScreen';
 export { PlayerScreen } from './PlayerScreen';
 export { ViewerSelectionScreen } from './ViewerSelectionScreen';
+export { SearchScreen } from './SearchScreen';

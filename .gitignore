@@ -33,3 +33,7 @@ planby-native-pro-main
 release.keystore
 signing.properties
 src/config/devDefaults.ts
+
+# Build directories
+ios
+android
