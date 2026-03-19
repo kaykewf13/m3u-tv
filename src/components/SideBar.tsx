@@ -37,6 +37,7 @@ interface MenuItem {
 
 const MENU_ITEMS: MenuItem[] = [
     { id: 'Home', label: 'Home', icon: 'Home' },
+    { id: 'Search', label: 'Search', icon: 'Search' },
     { id: 'LiveTV', label: 'Live TV', icon: 'Tv' },
     { id: 'EPG', label: 'TV Guide', icon: 'Calendar' },
     { id: 'VOD', label: 'Movies', icon: 'Film' },

@@ -5,6 +5,7 @@ import { View, StyleSheet, BackHandler, TVFocusGuideView, findNodeHandle } from 
 import { useIsFocused } from '@react-navigation/native';
 import {
   HomeScreen,
+  SearchScreen,
   SettingsScreen,
   LiveTVScreen,
   EPGScreen,
@@ -89,6 +90,7 @@ function MainNavigator() {
               }}
             >
               <MainStack.Screen name="Home" component={HomeScreen} />
+              <MainStack.Screen name="Search" component={SearchScreen} />
               <MainStack.Screen name="LiveTV" component={LiveTVScreen} />
               <MainStack.Screen name="EPG" component={EPGScreen} />
               <MainStack.Screen name="VOD" component={VODScreen} />
