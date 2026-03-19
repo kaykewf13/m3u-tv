@@ -122,19 +122,11 @@ const FocusContainer = isTVOS
 const PROGRESS_INTERVAL_MS = 10_000; // Report progress every 10 seconds
 
 export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player'>) => {
-    const { title, type, streamId, seriesId, seasonNumber, startPosition } = route.params;
+    const { streamUrl, title, type, streamId, seriesId, seasonNumber, startPosition } = route.params;
     const isLive = type === 'live';
 
     const { isM3UEditor } = useXtream();
     const { activeViewer, updateProgress } = useViewer();
-
-
-    // DEBUGGING: Temporary hardcoded stream URL for testing purposes
-    let streamUrl = 'https://ftp.halifax.rwth-aachen.de/blender/demo/movies/Sintel.2010.1080p.mkv';
-    if (isLive) {
-        streamUrl = 'https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/stitch/hls/channel/5c12ba66eae03059cbdc77f2/master.m3u8?advertisingId=&appName=web&appVersion=unknown&appStoreUrl=&architecture=&buildVersion=&clientTime=0&deviceDNT=0&deviceId=3c1b5410-0cf9-11f1-aa0b-e3d711d187f5&deviceMake=Chrome&deviceModel=web&deviceType=web&deviceVersion=unknown&includeExtendedEvents=false&sid=ffaf6ba5-9e47-4c47-b494-a79be9873606&userId=&serverSideAds=true';
-    }
-
 
     const initialBackend = useMemo(() => getInitialBackend(streamUrl), [streamUrl]);
     const [backend, setBackend] = useState<PlayerBackend>(initialBackend);
@@ -223,7 +215,7 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
                 });
             }
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isM3UEditor, activeViewer, streamId, isLive, type, seriesId, seasonNumber]);
 
     const [overlayVisible, setOverlayVisible] = useState(true);
