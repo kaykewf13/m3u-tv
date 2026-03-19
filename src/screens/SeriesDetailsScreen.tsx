@@ -9,6 +9,7 @@ import {
   ScrollView,
   FlatList,
   TVFocusGuideView,
+  Platform,
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { useXtream } from '../context/XtreamContext';
@@ -154,6 +155,14 @@ export const SeriesDetailsScreen = ({ route, navigation }: RootStackScreenProps<
       />
       <ImageBackground source={{ uri: item.cover }} style={styles.backdrop} blurRadius={5}>
         <LinearGradient colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.8)', colors.background]} style={styles.gradient}>
+          {Platform.OS === 'web' && (
+            <FocusablePressable
+              onSelect={() => navigation.goBack()}
+              style={({ isFocused: f }) => [styles.backButton, f && styles.backButtonFocused]}
+            >
+              <Icon name="ArrowLeft" size={scaledPixels(22)} color={colors.text} />
+            </FocusablePressable>
+          )}
           <View style={styles.content}>
             <View style={styles.header}>
               <View style={styles.mainInfo}>
@@ -279,6 +288,18 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: scaledPixels(80),
     paddingTop: scaledPixels(40),
+  },
+  backButton: {
+    position: 'absolute',
+    top: scaledPixels(20),
+    left: scaledPixels(20),
+    padding: scaledPixels(10),
+    borderRadius: scaledPixels(50),
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 10,
+  },
+  backButtonFocused: {
+    backgroundColor: colors.primary,
   },
   content: {
     flex: 1,

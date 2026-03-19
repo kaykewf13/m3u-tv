@@ -6,17 +6,21 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { XtreamProvider } from './src/context/XtreamContext';
 import { MenuProvider } from './src/context/MenuContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { PhoneNavigator } from './src/navigation/PhoneNavigator';
+import { useShouldUseSidebar } from './src/hooks/useDeviceType';
 
 LogBox.ignoreLogs(['Persistent storage is not supported on tvOS']);
 
 export default function App() {
+  const useSidebar = useShouldUseSidebar();
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <XtreamProvider>
           <MenuProvider>
             <StatusBar style="light" />
-            <AppNavigator />
+            {useSidebar ? <AppNavigator /> : <PhoneNavigator />}
           </MenuProvider>
         </XtreamProvider>
       </SafeAreaProvider>

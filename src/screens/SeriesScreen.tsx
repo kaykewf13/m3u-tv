@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, FlatList, ScrollView, Platform } from 'react-native';
+import { useHorizontalWheelScroll } from '../hooks/useHorizontalWheelScroll';
 import { useXtream } from '../context/XtreamContext';
 import { useMenu } from '../context/MenuContext';
 import { colors } from '../theme';
@@ -10,6 +11,7 @@ import { FocusablePressable } from '../components/FocusablePressable';
 import { SeriesCard } from '../components/SeriesCard';
 
 export function SeriesScreen(_props: DrawerScreenPropsType<'Series'>) {
+  const categoryWheelRef = useHorizontalWheelScroll();
   const { isSidebarActive, setSidebarActive } = useMenu();
   const { isConfigured, seriesCategories, fetchSeries } = useXtream();
   const [seriesList, setSeriesList] = useState<XtreamSeries[]>([]);
@@ -96,10 +98,10 @@ export function SeriesScreen(_props: DrawerScreenPropsType<'Series'>) {
               </View>
             ) : null
           }
-          ListHeaderComponent={<View style={styles.categoryListContainer}>
+          ListHeaderComponent={<View ref={categoryWheelRef} style={styles.categoryListContainer}>
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={false}
+              showsHorizontalScrollIndicator={Platform.OS === 'web'}
               style={styles.categoryList}
               contentContainerStyle={styles.categoryListContent}
             >

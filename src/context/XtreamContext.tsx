@@ -12,7 +12,7 @@ import {
   XtreamVodInfo,
   XtreamSeriesInfo,
 } from '../types/xtream';
-import * as SecureStore from 'expo-secure-store';
+import { getSecureItem, setSecureItem, deleteSecureItem } from '../services/secureStorage';
 
 const STORAGE_KEY = 'm3ue_tv_credentials';
 
@@ -117,7 +117,7 @@ export function XtreamProvider({ children }: { children: ReactNode }) {
         xtreamService.setM3UEditor(true);
 
         // Save credentials
-        await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(credentials));
+        await setSecureItem(STORAGE_KEY, JSON.stringify(credentials));
 
         // Fetch initial categories
         const [liveCategories, vodCategories, seriesCategories] = await Promise.all([
@@ -156,7 +156,7 @@ export function XtreamProvider({ children }: { children: ReactNode }) {
   );
 
   const disconnect = useCallback(async () => {
-    await SecureStore.deleteItemAsync(STORAGE_KEY);
+    await deleteSecureItem(STORAGE_KEY);
     await cacheService.clear();
     xtreamService.setM3UEditor(false);
     setState({
@@ -177,7 +177,7 @@ export function XtreamProvider({ children }: { children: ReactNode }) {
 
   const loadSavedCredentials = useCallback(async (): Promise<boolean> => {
     try {
-      const saved = await SecureStore.getItemAsync(STORAGE_KEY);
+      const saved = await getSecureItem(STORAGE_KEY);
       if (!saved) return false;
 
       const credentials: XtreamCredentials = JSON.parse(saved);

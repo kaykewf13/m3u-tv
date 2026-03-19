@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { NavigationContainer, DarkTheme, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, StyleSheet, BackHandler, TVFocusGuideView, findNodeHandle, Pressable } from 'react-native';
+import { View, StyleSheet, Platform, findNodeHandle, Pressable } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
+import { FocusGuide } from '../components/FocusGuide';
+import { useBackHandler } from '../hooks/useBackHandler';
 import {
   HomeScreen,
   SettingsScreen,
@@ -45,6 +47,7 @@ function MainNavigator() {
   const [grabFocus, setGrabFocus] = useState(false);
 
   useEffect(() => {
+    if (Platform.OS === 'web') return;
     const id = setTimeout(() => {
       const tag = findNodeHandle(contentFocusRef.current);
       if (typeof tag === 'number') {
@@ -74,23 +77,21 @@ function MainNavigator() {
     wasFocusedRef.current = isFocused;
   }, [isFocused, setSidebarActive]);
 
-  // Back button: focus sidebar instead of exiting when on a top-level screen
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isFocused && !isSidebarActive) {
-        setSidebarActive(true);
-        return true; // prevent default (exit app)
-      }
-      return false; // allow default behavior
-    });
-    return () => backHandler.remove();
+  const handleBackPress = useCallback(() => {
+    if (isFocused && !isSidebarActive) {
+      setSidebarActive(true);
+      return true;
+    }
+    return false;
   }, [isFocused, isSidebarActive, setSidebarActive]);
+
+  useBackHandler(handleBackPress);
 
   return (
     <View style={styles.mainContainer}>
       {/* Content area - full width with left margin for collapsed sidebar */}
       <View style={styles.contentContainer}>
-        <TVFocusGuideView style={styles.fill} autoFocus>
+        <FocusGuide style={styles.fill} autoFocus>
           <View
             ref={contentFocusRef}
             collapsable={false}
@@ -125,17 +126,17 @@ function MainNavigator() {
               <MainStack.Screen name="Settings" component={SettingsScreen} />
             </MainStack.Navigator>
           </View>
-        </TVFocusGuideView>
+        </FocusGuide>
       </View>
 
       {/* Sidebar - absolutely positioned, overlays content when expanded */}
       <View
-        style={styles.sidebarLayer}
+        style={[styles.sidebarLayer, Platform.OS === 'web' && styles.sidebarLayerWeb]}
         pointerEvents="box-none"
       >
-        <TVFocusGuideView style={styles.fill} trapFocusLeft>
+        <FocusGuide style={styles.fill} trapFocusLeft>
           <SideBar contentFocusTag={contentFocusTag} onNavigate={handleSidebarNavigate} />
-        </TVFocusGuideView>
+        </FocusGuide>
       </View>
     </View>
   );
@@ -204,6 +205,11 @@ const styles = StyleSheet.create({
   },
   sidebarLayer: {
     ...StyleSheet.absoluteFillObject,
+  },
+  sidebarLayerWeb: {
+    right: 'auto' as any,
+    width: SIDEBAR_WIDTH_COLLAPSED,
+    overflow: 'visible' as any,
   },
   focusAnchor: {
     position: 'absolute',

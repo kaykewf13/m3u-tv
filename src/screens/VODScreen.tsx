@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, FlatList, ScrollView, Platform } from 'react-native';
+import { useHorizontalWheelScroll } from '../hooks/useHorizontalWheelScroll';
 import { useXtream } from '../context/XtreamContext';
 import { useMenu } from '../context/MenuContext';
 import { colors } from '../theme';
@@ -10,6 +11,7 @@ import { FocusablePressable } from '../components/FocusablePressable';
 import { MovieCard } from '../components/MovieCard';
 
 export function VODScreen(_props: DrawerScreenPropsType<'VOD'>) {
+  const categoryWheelRef = useHorizontalWheelScroll();
   const { isSidebarActive, setSidebarActive } = useMenu();
   const { isConfigured, vodCategories, fetchVodStreams } = useXtream();
   const [movies, setMovies] = useState<XtreamVodStream[]>([]);
@@ -105,10 +107,10 @@ export function VODScreen(_props: DrawerScreenPropsType<'VOD'>) {
               </View>
             ) : null
           }
-          ListHeaderComponent={<View style={styles.categoryListContainer}>
+          ListHeaderComponent={<View ref={categoryWheelRef} style={styles.categoryListContainer}>
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={false}
+              showsHorizontalScrollIndicator={Platform.OS === 'web'}
               style={styles.categoryList}
               contentContainerStyle={styles.categoryListContent}
             >

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import {
   XtreamCredentials,
   XtreamAuthResponse,
@@ -18,6 +19,15 @@ import {
 
 const M3UE_CLIENT_HEADER = 'X-M3UE-Client';
 const M3UE_CLIENT_VALUE = 'm3u-tv';
+
+const WEB_UNSUPPORTED_CONTAINERS = new Set(['mkv', 'avi', 'wmv', 'flv', 'rmvb', 'mov', 'divx', 'asf']);
+
+function webSafeExtension(ext: string): string {
+  if (Platform.OS === 'web' && WEB_UNSUPPORTED_CONTAINERS.has(ext.toLowerCase())) {
+    return 'mp4';
+  }
+  return ext;
+}
 
 class XtreamService {
   private credentials: XtreamCredentials | null = null;
@@ -158,7 +168,8 @@ class XtreamService {
       throw new Error('Xtream credentials not configured');
     }
     const { username, password } = this.credentials;
-    return `${this.getBaseUrl()}/movie/${username}/${password}/${streamId}.${extension}`;
+    const ext = webSafeExtension(extension);
+    return `${this.getBaseUrl()}/movie/${username}/${password}/${streamId}.${ext}`;
   }
 
   // Series
@@ -183,7 +194,8 @@ class XtreamService {
       throw new Error('Xtream credentials not configured');
     }
     const { username, password } = this.credentials;
-    return `${this.getBaseUrl()}/series/${username}/${password}/${episodeId}.${extension}`;
+    const ext = webSafeExtension(extension);
+    return `${this.getBaseUrl()}/series/${username}/${password}/${episodeId}.${ext}`;
   }
 
   // EPG

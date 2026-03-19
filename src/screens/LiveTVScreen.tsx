@@ -8,6 +8,7 @@ import {
   ScrollView,
   Image,
   ViewToken,
+  Platform,
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
@@ -25,6 +26,7 @@ import { RootStackParamList } from '../navigation/types';
 import { XtreamCategory, XtreamLiveStream } from '../types/xtream';
 import { scaledPixels } from '../hooks/useScale';
 import { FocusablePressable } from '../components/FocusablePressable';
+import { useHorizontalWheelScroll } from '../hooks/useHorizontalWheelScroll';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,6 +39,7 @@ interface EpgInfo {
 // ── Main Screen ──────────────────────────────────────────────────────────────
 
 export function LiveTVScreen(_props: DrawerScreenPropsType<'LiveTV'>) {
+  const categoryWheelRef = useHorizontalWheelScroll();
   const isFocused = useIsFocused();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { isSidebarActive, setSidebarActive } = useMenu();
@@ -388,10 +391,10 @@ export function LiveTVScreen(_props: DrawerScreenPropsType<'LiveTV'>) {
             />
           )}
         </FocusablePressable>
-        <View style={styles.categoryListContainer}>
+        <View ref={categoryWheelRef} style={styles.categoryListContainer}>
           <ScrollView
             horizontal
-            showsHorizontalScrollIndicator={false}
+            showsHorizontalScrollIndicator={Platform.OS === 'web'}
             style={styles.categoryList}
             contentContainerStyle={styles.categoryListContent}
           >

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -228,7 +228,11 @@ export const SideBar = ({ contentFocusTag, onNavigate }: SideBarProps) => {
                 </View>
             </View>
 
-            <BlurView intensity={30} experimentalBlurMethod={'dimezisBlurView'} style={StyleSheet.absoluteFill} />
+            <BlurView
+                intensity={30}
+                experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+                style={StyleSheet.absoluteFill}
+            />
         </Animated.View>
     );
 };
