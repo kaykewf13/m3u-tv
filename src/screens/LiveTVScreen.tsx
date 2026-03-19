@@ -8,7 +8,6 @@ import {
   ScrollView,
   Image,
   ViewToken,
-  Platform,
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
@@ -394,7 +393,7 @@ export function LiveTVScreen(_props: DrawerScreenPropsType<'LiveTV'>) {
         <View ref={categoryWheelRef} style={styles.categoryListContainer}>
           <ScrollView
             horizontal
-            showsHorizontalScrollIndicator={Platform.OS === 'web'}
+            showsHorizontalScrollIndicator={false}
             style={styles.categoryList}
             contentContainerStyle={styles.categoryListContent}
           >
