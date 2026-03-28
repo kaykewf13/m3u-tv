@@ -31,7 +31,7 @@ function decodeBase64(str: string): string {
       'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
     let output = '';
     const s = str.replace(/[^A-Za-z0-9+/=]/g, '');
-    for (let i = 0; i < s.length; ) {
+    for (let i = 0; i < s.length;) {
       const e1 = chars.indexOf(s.charAt(i++));
       const e2 = chars.indexOf(s.charAt(i++));
       const e3 = chars.indexOf(s.charAt(i++));
@@ -193,7 +193,7 @@ class EpgService {
     this.data.clear();
     this.fetchTimes.clear();
     this.cacheRestored = false;
-    AsyncStorage.removeItem(EPG_CACHE_KEY).catch(() => {});
+    AsyncStorage.removeItem(EPG_CACHE_KEY).catch(() => { });
   }
 
   // ── Private ─────────────────────────────────────────────────────────────
@@ -297,7 +297,7 @@ class EpgService {
         }
       }
       const payload = JSON.stringify({ ts: Date.now(), d: obj });
-      AsyncStorage.setItem(EPG_CACHE_KEY, payload).catch(() => {});
+      AsyncStorage.setItem(EPG_CACHE_KEY, payload).catch(() => { });
     } catch {
       // ignore
     }
@@ -307,11 +307,11 @@ class EpgService {
   private async _restoreFromCache(): Promise<void> {
     try {
       // Clean up old cache keys from previous versions
-      AsyncStorage.removeItem('m3ue_epg_cache').catch(() => {});
-      AsyncStorage.removeItem('m3ue_epg_v3').catch(() => {});
-      AsyncStorage.removeItem('m3ue_epg_v4').catch(() => {});
-      AsyncStorage.removeItem('m3ue_epg_v5').catch(() => {});
-      AsyncStorage.removeItem('m3ue_epg_v6').catch(() => {});
+      AsyncStorage.removeItem('m3ue_epg_cache').catch(() => { });
+      AsyncStorage.removeItem('m3ue_epg_v3').catch(() => { });
+      AsyncStorage.removeItem('m3ue_epg_v4').catch(() => { });
+      AsyncStorage.removeItem('m3ue_epg_v5').catch(() => { });
+      AsyncStorage.removeItem('m3ue_epg_v6').catch(() => { });
 
       const raw = await AsyncStorage.getItem(EPG_CACHE_KEY);
       if (!raw) return;
@@ -324,7 +324,7 @@ class EpgService {
       // Only use cache if less than 1 hour old
       if (Date.now() - parsed.ts > 3600 * 1000) return;
 
-      let count = 0;
+      let _count = 0;
       for (const [key, value] of Object.entries(parsed.d)) {
         this.data.set(
           key,
@@ -336,7 +336,7 @@ class EpgService {
           })),
         );
         this.fetchTimes.set(key, parsed.ts);
-        count++;
+        _count++;
       }
     } catch {
       // Corrupted cache, ignore

@@ -14,7 +14,7 @@ import { DrawerScreenPropsType } from '../navigation/types';
 import { XtreamLiveStream, XtreamVodStream, XtreamSeries, WatchProgress } from '../types/xtream';
 
 export function HomeScreen({ navigation }: DrawerScreenPropsType<'Home'>) {
-  const { isConfigured, isLoading, isM3UEditor, loadSavedCredentials, fetchLiveStreams, fetchVodStreams, fetchSeries, getLiveStreamUrl, vodCategories } = useXtream();
+  const { isConfigured, isLoading, isM3UEditor, loadSavedCredentials, fetchLiveStreams, fetchVodStreams, fetchSeries, vodCategories } = useXtream();
   const { activeViewer, getRecentlyWatched } = useViewer();
   const { isSidebarActive, setSidebarActive } = useMenu();
   const [liveStreams, setLiveStreams] = useState<XtreamLiveStream[]>([]);

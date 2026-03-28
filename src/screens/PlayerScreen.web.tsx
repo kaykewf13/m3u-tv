@@ -95,7 +95,7 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
         const video = videoRef.current;
         if (!video) return;
         if (video.paused) {
-            video.play().catch(() => {});
+            video.play().catch(() => { });
         } else {
             video.pause();
         }
@@ -147,7 +147,6 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
             goBackSafe();
         });
         return cleanup;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [externalPlaying]);
 
     // Try to open the stream in an external player (mpv/vlc) when in Electron
@@ -172,7 +171,6 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
             setExternalPlaying(false);
             externalPlayerLaunched.current = false;
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streamUrl]);
 
     // Video playback setup
@@ -216,7 +214,7 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
                     if (startPosition && startPosition > 0) {
                         video.currentTime = startPosition;
                     }
-                    video.play().catch(() => {});
+                    video.play().catch(() => { });
                 });
 
                 let mediaErrorRecoveries = 0;
@@ -253,7 +251,7 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
                 if (startPosition && startPosition > 0) {
                     video.currentTime = startPosition;
                 }
-                video.play().catch(() => {});
+                video.play().catch(() => { });
             };
 
             const onError = () => {
@@ -270,7 +268,6 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
                 video.src = '';
             };
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [streamUrl, isLive, startPosition]);
 
     // Sync video element state
@@ -414,7 +411,6 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
                 });
             }
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isM3UEditor, activeViewer, streamId, isLive, type, seriesId, seasonNumber]);
 
     const canSeek = !isLive && duration > 0;
@@ -582,7 +578,7 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
                                 onSelect={() => {
                                     const video = videoRef.current;
                                     if (video?.requestFullscreen) {
-                                        video.requestFullscreen().catch(() => {});
+                                        video.requestFullscreen().catch(() => { });
                                     }
                                 }}
                                 onFocus={resetHideTimer}

@@ -15,7 +15,7 @@ import { colors, spacing, typography } from '../theme';
 import { DrawerScreenPropsType } from '../navigation/types';
 import { FocusablePressable } from '../components/FocusablePressable';
 import { scaledPixels } from '../hooks/useScale';
-import { cacheService, CacheSettings, EpgViewMode } from '../services/CacheService';
+import { cacheService, EpgViewMode } from '../services/CacheService';
 
 const REFRESH_OPTIONS = [
   { label: '15 minutes', value: 15 },
@@ -60,7 +60,6 @@ export function SettingsScreen({ navigation }: DrawerScreenPropsType<'Settings'>
   useEffect(() => {
     if (__DEV__) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { devDefaults } = require('../config/devDefaults');
         if (devDefaults) {
           setServer((s: string) => s || devDefaults.server);

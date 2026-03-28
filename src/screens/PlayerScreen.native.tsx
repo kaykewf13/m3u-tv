@@ -242,7 +242,6 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
                 });
             }
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isM3UEditor, activeViewer, streamId, isLive, type, seriesId, seasonNumber]);
 
     // Fetch EPG data for live channel
