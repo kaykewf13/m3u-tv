@@ -5,9 +5,9 @@ import {
   TextInput,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   ScrollView,
 } from 'react-native';
+import { showAlert, showConfirm } from '../utils/platformAlert';
 import { useIsFocused } from '@react-navigation/native';
 import { useXtream } from '../context/XtreamContext';
 import { useViewer } from '../context/ViewerContext';
@@ -97,7 +97,7 @@ export function SettingsScreen({ navigation }: DrawerScreenPropsType<'Settings'>
 
   const handleClearCache = async () => {
     await cacheService.clear();
-    Alert.alert('Cache Cleared', 'All cached content has been removed.');
+    showAlert('Cache Cleared', 'All cached content has been removed.');
   };
 
   const handleManualRefresh = async (key: string, action: () => Promise<unknown>) => {
@@ -105,9 +105,9 @@ export function SettingsScreen({ navigation }: DrawerScreenPropsType<'Settings'>
     setRefreshingKey(key);
     try {
       await action();
-      Alert.alert('Refreshed', `${key} data has been refreshed.`);
+      showAlert('Refreshed', `${key} data has been refreshed.`);
     } catch {
-      Alert.alert('Error', `Failed to refresh ${key}.`);
+      showAlert('Error', `Failed to refresh ${key}.`);
     } finally {
       setRefreshingKey(null);
     }
@@ -115,7 +115,7 @@ export function SettingsScreen({ navigation }: DrawerScreenPropsType<'Settings'>
 
   const handleConnect = async () => {
     if (!server || !username || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      showAlert('Error', 'Please fill in all fields');
       return;
     }
     clearError();
@@ -125,15 +125,8 @@ export function SettingsScreen({ navigation }: DrawerScreenPropsType<'Settings'>
     }
   };
 
-  const handleDisconnect = async () => {
-    Alert.alert('Disconnect', 'Are you sure you want to disconnect?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Disconnect',
-        style: 'destructive',
-        onPress: disconnect,
-      },
-    ]);
+  const handleDisconnect = () => {
+    showConfirm('Disconnect', 'Are you sure you want to disconnect?', disconnect);
   };
 
   if (isConfigured && authResponse) {
