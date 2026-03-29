@@ -70,6 +70,7 @@ const config = {
     ],
     'expo-secure-store',
     './plugins/withAndroidSigning',
+    './plugins/withMpvPlayer',
   ],
 };
 

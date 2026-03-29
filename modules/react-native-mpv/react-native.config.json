@@ -1,0 +1,9 @@
+{
+  "platforms": ["android", "ios"],
+  "android": {
+    "javaPackageName": "dev.sparkison.mpv"
+  },
+  "ios": {
+    "podspecPath": "./ios/react-native-mpv.podspec"
+  }
+}
