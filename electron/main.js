@@ -28,7 +28,7 @@ function createWindow() {
 
   const isDev = process.env.ELECTRON_DEV === '1';
   if (isDev) {
-    mainWindow.loadURL('http://localhost:8081');
+    mainWindow.loadURL('http://0.0.0.0:8081');
   } else {
     mainWindow.loadURL('app://bundle/index.html');
   }
