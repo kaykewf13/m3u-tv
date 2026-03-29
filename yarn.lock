@@ -9056,11 +9056,11 @@ __metadata:
 
 "react-native-mpv@file:./modules/react-native-mpv::locator=m3u-tv%40workspace%3A.":
   version: 0.1.0
-  resolution: "react-native-mpv@file:./modules/react-native-mpv#./modules/react-native-mpv::hash=498aae&locator=m3u-tv%40workspace%3A."
+  resolution: "react-native-mpv@file:./modules/react-native-mpv#./modules/react-native-mpv::hash=18135c&locator=m3u-tv%40workspace%3A."
   peerDependencies:
     react: "*"
     react-native: "*"
-  checksum: 10c0/199d3729d96abcee8ff4b9b7ea9dbe5a4e02a5d49ec6e4521a2013708414843628e71ceb0f9b503e50bcb322420946f661b92e916ef24d7d56ae792d8d1da685
+  checksum: 10c0/70f8f33c0bf5966d04084b8e34a4dd8642dbeecb90e09961e1747ed280ced4a9eef6dc918eea4b80db816e2018e8ae1264354feeeda3ef1101b537d27c390ff2
   languageName: node
   linkType: hard
 
