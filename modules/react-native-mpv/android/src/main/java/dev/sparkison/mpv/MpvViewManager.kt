@@ -1,7 +1,6 @@
 package dev.sparkison.mpv
 
 import com.facebook.react.bridge.ReadableArray
-import com.facebook.react.common.MapBuilder
 import com.facebook.react.uimanager.SimpleViewManager
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.annotations.ReactProp
@@ -45,15 +44,20 @@ class MpvViewManager : SimpleViewManager<MpvPlayerView>() {
         view.setPaused(paused)
     }
 
+    @ReactProp(name = "startPosition", defaultDouble = 0.0)
+    fun setStartPosition(view: MpvPlayerView, seconds: Double) {
+        view.setStartPosition(seconds)
+    }
+
     override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any> {
-        return MapBuilder.builder<String, Any>()
-            .put("onMpvLoad", MapBuilder.of("registrationName", "onMpvLoad"))
-            .put("onMpvProgress", MapBuilder.of("registrationName", "onMpvProgress"))
-            .put("onMpvBuffer", MapBuilder.of("registrationName", "onMpvBuffer"))
-            .put("onMpvError", MapBuilder.of("registrationName", "onMpvError"))
-            .put("onMpvEnd", MapBuilder.of("registrationName", "onMpvEnd"))
-            .put("onMpvTracksChanged", MapBuilder.of("registrationName", "onMpvTracksChanged"))
-            .build()
+        return mapOf(
+            "onMpvLoad" to mapOf("registrationName" to "onMpvLoad"),
+            "onMpvProgress" to mapOf("registrationName" to "onMpvProgress"),
+            "onMpvBuffer" to mapOf("registrationName" to "onMpvBuffer"),
+            "onMpvError" to mapOf("registrationName" to "onMpvError"),
+            "onMpvEnd" to mapOf("registrationName" to "onMpvEnd"),
+            "onMpvTracksChanged" to mapOf("registrationName" to "onMpvTracksChanged"),
+        )
     }
 
     override fun getCommandsMap(): Map<String, Int> {

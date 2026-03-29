@@ -124,6 +124,12 @@ class MpvPlayerView: UIView {
         mpv_set_property(ctx, "pause", MPV_FORMAT_FLAG, &flag)
     }
 
+    func setStartPosition(_ seconds: Double) {
+        if seconds > 0 {
+            pendingSeek = seconds
+        }
+    }
+
     func seekTo(_ seconds: Double) {
         guard let ctx = mpv, isInitialized, seconds >= 0 else { return }
         let args = [seconds.description, "absolute"]

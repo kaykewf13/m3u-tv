@@ -6,17 +6,25 @@ import android.view.SurfaceView
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.WritableMap
-import com.facebook.react.uimanager.events.RCTEventEmitter
+import com.facebook.react.uimanager.UIManagerHelper
+import com.facebook.react.uimanager.events.EventDispatcher
 import dev.jdtech.mpv.MPVLib
+import java.util.concurrent.Executors
 
 class MpvPlayerView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     MPVLib.EventObserver, MPVLib.LogObserver {
 
     private var initialized = false
+    private var destroying = false
     private var uri: String? = null
     private var userAgent: String? = null
     private var isPaused = false
     private var pendingSeek: Double = -1.0
+    private var startPosition: Double = 0.0
+
+    companion object {
+        private val destroyExecutor = Executors.newSingleThreadExecutor()
+    }
 
     init {
         holder.addCallback(this)
@@ -40,6 +48,13 @@ class MpvPlayerView(context: Context) : SurfaceView(context), SurfaceHolder.Call
         isPaused = value
         if (initialized) {
             MPVLib.setPropertyBoolean("pause", value)
+        }
+    }
+
+    fun setStartPosition(seconds: Double) {
+        startPosition = seconds
+        if (seconds > 0) {
+            pendingSeek = seconds
         }
     }
 
@@ -72,16 +87,22 @@ class MpvPlayerView(context: Context) : SurfaceView(context), SurfaceHolder.Call
     }
 
     fun stop() {
-        if (initialized) {
-            MPVLib.command(arrayOf("stop"))
+        if (initialized && !destroying) {
+            try {
+                MPVLib.command(arrayOf("stop"))
+            } catch (_: Exception) { }
         }
     }
 
     fun destroy() {
-        if (initialized) {
-            initialized = false
+        if (!initialized || destroying) return
+        destroying = true
+        initialized = false
+        destroyExecutor.execute {
             try {
                 MPVLib.removeObserver(this)
+                MPVLib.command(arrayOf("stop"))
+                Thread.sleep(50)
                 MPVLib.destroy()
             } catch (_: Exception) { }
         }
@@ -142,9 +163,14 @@ class MpvPlayerView(context: Context) : SurfaceView(context), SurfaceHolder.Call
 
     private fun sendEvent(eventName: String, params: WritableMap) {
         val reactContext = context as? ReactContext ?: return
-        reactContext
-            .getJSModule(RCTEventEmitter::class.java)
-            .receiveEvent(id, eventName, params)
+        val surfaceId = UIManagerHelper.getSurfaceId(reactContext)
+        val dispatcher: EventDispatcher? = UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)
+        dispatcher?.dispatchEvent(
+            object : com.facebook.react.uimanager.events.Event<Nothing>(surfaceId, id) {
+                override fun getEventName(): String = eventName
+                override fun getEventData(): WritableMap = params
+            }
+        )
     }
 
     // SurfaceHolder.Callback
@@ -153,11 +179,13 @@ class MpvPlayerView(context: Context) : SurfaceView(context), SurfaceHolder.Call
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        MPVLib.setPropertyString("android-surface-size", "${width}x${height}")
+        if (initialized && !destroying) {
+            MPVLib.setPropertyString("android-surface-size", "${width}x${height}")
+        }
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        if (initialized) {
+        if (initialized && !destroying) {
             MPVLib.detachSurface()
         }
     }
@@ -168,12 +196,14 @@ class MpvPlayerView(context: Context) : SurfaceView(context), SurfaceHolder.Call
     }
 
     override fun eventProperty(property: String, value: Long) {
+        if (destroying) return
         when (property) {
             "track-list/count" -> emitTrackInfo()
         }
     }
 
     override fun eventProperty(property: String, value: Boolean) {
+        if (destroying) return
         when (property) {
             "pause" -> {
                 // not used — we drive pause from JS
@@ -192,6 +222,7 @@ class MpvPlayerView(context: Context) : SurfaceView(context), SurfaceHolder.Call
     }
 
     override fun eventProperty(property: String, value: Double) {
+        if (destroying) return
         when (property) {
             "time-pos" -> {
                 val params = Arguments.createMap()
@@ -212,6 +243,7 @@ class MpvPlayerView(context: Context) : SurfaceView(context), SurfaceHolder.Call
     }
 
     override fun event(eventId: Int) {
+        if (destroying) return
         when (eventId) {
             MPVLib.MPV_EVENT_FILE_LOADED -> {
                 val duration = try { MPVLib.getPropertyDouble("duration") ?: 0.0 } catch (_: Exception) { 0.0 }
@@ -239,11 +271,10 @@ class MpvPlayerView(context: Context) : SurfaceView(context), SurfaceHolder.Call
 
     // MPVLib.LogObserver
     override fun logMessage(prefix: String, level: Int, text: String) {
-        // Only forward errors to JS
+        // Log mpv errors for debugging but don't treat them as playback failures.
+        // Non-fatal errors (codec warnings, demuxer retries) are common during init.
         if (level <= MPVLib.MPV_LOG_LEVEL_ERROR) {
-            val params = Arguments.createMap()
-            params.putString("error", "[$prefix] $text")
-            sendEvent("onMpvError", params)
+            android.util.Log.w("MpvPlayerView", "[$prefix] $text")
         }
     }
 

@@ -137,8 +137,6 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
     const seekingRef = useRef(false);
     const seekLockoutTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const exitGuardRef = useRef(false);
-    const startPositionRef = useRef(startPosition ?? 0);
-    const hasSeekedToStartRef = useRef(false);
     const tracksLoadedRef = useRef(false);
     const loadingTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -282,7 +280,6 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
     const goBackSafe = useCallback(() => {
         if (exitGuardRef.current) return;
         exitGuardRef.current = true;
-        mpvRef.current?.stop();
         navigation.goBack();
     }, [navigation]);
 
@@ -362,11 +359,6 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
         const dur = data.duration || 0;
         setDuration(dur);
 
-        if (startPositionRef.current > 0 && !hasSeekedToStartRef.current && dur > 0) {
-            hasSeekedToStartRef.current = true;
-            mpvRef.current?.seekTo(startPositionRef.current);
-        }
-
         if (!tracksLoadedRef.current) {
             const audio = (data.audioTracks ?? []).filter((t: MpvTrack) => t.id >= 0);
             const text = (data.textTracks ?? []).filter((t: MpvTrack) => t.id >= 0);
@@ -382,6 +374,7 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
         (event: NativeSyntheticEvent<MpvProgressEvent>) => {
             const data = event.nativeEvent;
             if (isLoading) setIsLoading(false);
+            if (error) setError(null);
 
             if (!seekingRef.current) {
                 if (data.duration > 0 && data.duration !== durationRef.current) {
@@ -390,7 +383,7 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
                 setCurrentTime(data.currentTime);
             }
         },
-        [isLoading],
+        [isLoading, error],
     );
 
     const handleMpvBuffer = useCallback((event: NativeSyntheticEvent<MpvBufferEvent>) => {
@@ -551,6 +544,7 @@ export const PlayerScreen = ({ route, navigation }: RootStackScreenProps<'Player
                     uri={streamUrl}
                     userAgent={USER_AGENT}
                     paused={paused}
+                    startPosition={startPosition ?? 0}
                     style={styles.player}
                     onMpvLoad={handleMpvLoad}
                     onMpvProgress={handleMpvProgress}

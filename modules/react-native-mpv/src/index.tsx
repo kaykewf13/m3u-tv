@@ -48,6 +48,7 @@ interface MpvPlayerProps {
     uri: string;
     userAgent?: string;
     paused?: boolean;
+    startPosition?: number;
     style?: StyleProp<ViewStyle>;
     onMpvLoad?: (event: NativeSyntheticEvent<MpvLoadEvent>) => void;
     onMpvProgress?: (event: NativeSyntheticEvent<MpvProgressEvent>) => void;
