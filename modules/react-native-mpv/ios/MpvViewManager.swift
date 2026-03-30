@@ -1,8 +1,8 @@
 import Foundation
 import React
 
-@objc(MpvViewManager)
-class MpvViewManager: RCTViewManager {
+@objc(MpvPlayerViewManager)
+class MpvPlayerViewManager: RCTViewManager {
 
     override func view() -> UIView! {
         return MpvPlayerView()
